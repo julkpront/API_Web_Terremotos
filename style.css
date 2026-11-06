@@ -1,0 +1,485 @@
+
+:root {
+  --fondo: #0b1020;                         
+  --tarjeta: rgba(255, 255, 255, 0.045);    
+  --borde: rgba(255, 255, 255, 0.12);
+  --texto: #e8ecf5;
+  --texto-suave: #a3adc7;
+  --acento: #ff5a36;                        
+  --acento-fuerte: #d93a1f;                 
+  --ambar: #ffb347;
+  --peligro: #ff8a80;
+  --popup-fondo: #141b31;
+
+  /* Le dice al navegador que la página es oscura: así los controles nativos
+     (como el calendario del input de fecha) también salen oscuros. */
+  color-scheme: dark;
+}
+
+/*  Estilos generales (Movile-First)  */
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  margin: 0;
+  padding: 12px;
+  min-height: 100vh;
+  line-height: 1.5;
+  background-color: var(--fondo);
+  background-image: radial-gradient(900px 420px at 50% -80px, rgba(255, 90, 54, 0.2), transparent 70%);
+  background-repeat: no-repeat;
+  color: var(--texto);
+}
+
+h1 {
+  margin-top: 0;
+  font-size: clamp(1.6rem, 4.5vw, 2.4rem); /* clamp(mínimo, ideal, máximo): crece con la pantalla */
+  text-shadow: 0 0 24px rgba(255, 90, 54, 0.45);
+}
+
+section {
+  background: var(--tarjeta);
+  border: 1px solid var(--borde);
+  padding: 14px;
+  margin-bottom: 20px;
+  border-radius: 14px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+
+/* Título de cada mapa con una barrita de color a la izquierda */
+section h2 {
+  margin-top: 0;
+  padding-left: 10px;
+  border-left: 4px solid var(--acento);
+  font-size: 1.15rem;
+}
+
+/* OJO: si un elemento tiene "display: flex" en el CSS, ese display GANA al atributo hidden
+   del navegador y el elemento no se oculta. Esta regla obliga a que hidden siempre oculte. */
+[hidden] {
+  display: none !important;
+}
+
+/* Anillo de foco visible al navegar con teclado (accesibilidad) */
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--ambar);
+  outline-offset: 2px;
+}
+
+/*  Cabecera: línea de sismógrafo animada  */
+header::after {
+  content: "";
+  display: block;
+  height: 40px;
+  margin: 10px 0 14px;
+  /* La onda es un SVG dibujado dentro del propio CSS (data URI), sin archivos externos */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='40' viewBox='0 0 240 40'%3E%3Cpath d='M0 20H50L56 20L60 6L66 34L72 2L80 38L86 12L92 26L98 20H240' fill='none' stroke='%23ff5a36' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-position: 0 center;
+  animation: sismografo 6s linear infinite;
+  /* La máscara difumina los extremos para que la línea aparezca y desaparezca suavemente */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent);
+}
+
+/* Mueve el fondo exactamente el ancho de una repetición (240px): el bucle no se nota */
+@keyframes sismografo {
+  to {
+    background-position: -240px center;
+  }
+}
+
+/* Si la persona pidió "reducir movimiento" en su sistema, la línea se queda quieta */
+@media (prefers-reduced-motion: reduce) {
+  header::after {
+    animation: none;
+  }
+}
+
+/*  Mapas  */
+.mapa {
+  height: 400px;
+  width: 100%;
+}
+
+/* En pantallas más grandes (ordenador) hacemos los mapas más altos */
+@media (min-width: 768px) {
+  body {
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+
+  .mapa {
+    height: 500px;
+  }
+}
+
+/*  Animación de carga  */
+/* El contenedor es la referencia para colocar la capa de carga encima del mapa */
+.contenedor-mapa {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden; /* Recorta las esquinas del mapa y de la capa de carga */
+  border: 1px solid var(--borde);
+}
+
+/* Capa oscura semitransparente que tapa el mapa mientras se cargan los datos */
+.cargando {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(11, 16, 32, 0.82);
+  color: var(--texto);
+  z-index: 1001; /* Leaflet usa números hasta 1000, así que ponemos uno mayor para quedar encima */
+}
+
+
+/* El círculo que gira */
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 5px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--acento); /* Solo una parte del borde es naranja: eso da la sensación de giro */
+  border-radius: 50%;
+  animation: girar 1s linear infinite;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*  Formulario de filtros  */
+#filtros {
+  display: flex;
+  flex-wrap: wrap; /* Si no caben en una línea, bajan a la siguiente */
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 8px;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 140px; /* Crecen para ocupar el espacio, mínimo 140px de ancho */
+}
+
+.campo label {
+  font-weight: bold;
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+  margin-bottom: 4px;
+}
+
+/* Campos de texto, número y fecha (también el de usuario de la cabecera) */
+.campo input,
+.form-login input {
+  padding: 8px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--texto);
+  font-size: 1rem;
+}
+
+/* BOTONES PRINCIPALES: degradado de lava */
+#filtros button,
+.form-login button {
+  padding: 9px 20px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--acento-fuerte), #b71c1c);
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.15s, filter 0.15s;
+}
+
+#filtros button:hover,
+.form-login button:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+
+#filtros button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Mensajes de aviso o error */
+.mensaje {
+  min-height: 1.2em;
+  font-size: 14px;
+  color: var(--texto-suave);
+}
+
+.mensaje.error {
+  color: var(--peligro);
+  font-weight: bold;
+}
+
+/*  Leyenda de colores  */
+header p {
+  color: var(--texto-suave);
+}
+
+#leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.leyenda-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--texto-suave);
+}
+
+/* Circulito de color de la leyenda */
+.leyenda-item i {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+}
+
+/* ---------- Leaflet: controles y popups en tonos oscuros ---------- */
+
+/* Color que se ve mientras cargan las teselas del mapa */
+.leaflet-container {
+  background: var(--fondo);
+}
+
+/* El selector doble (.leaflet-container + elemento) es necesario para ganar a las reglas de leaflet.css */
+.leaflet-container .leaflet-control-attribution {
+  background: rgba(11, 16, 32, 0.75);
+  color: var(--texto-suave);
+}
+
+.leaflet-container .leaflet-control-attribution a {
+  color: var(--ambar);
+}
+
+/* Botones de zoom (+ y -) */
+.leaflet-bar a,
+.leaflet-bar a:hover,
+.leaflet-bar a:focus {
+  background-color: var(--popup-fondo);
+  color: var(--texto);
+  border-bottom-color: var(--borde);
+}
+
+.leaflet-bar a:hover,
+.leaflet-bar a:focus {
+  background-color: #1f2945;
+}
+
+/* Globo del popup */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--popup-fondo);
+  color: var(--texto);
+  border: 1px solid var(--borde);
+}
+
+.leaflet-container a.leaflet-popup-close-button {
+  color: var(--texto-suave);
+}
+
+/* ---------- Popup de los terremotos ---------- */
+
+/* Contenedor principal del popup de terremotos */
+.popup-terremoto {
+    font-family: inherit;
+    min-width: 200px;
+}
+
+/* Título destacado en naranja */
+.popup-terremoto h4 {
+    margin: 0 0 8px 0;
+    color: var(--ambar);
+    font-size: 14px;
+}
+
+/* Línea separadora */
+.popup-terremoto hr {
+    border: 0;
+    border-top: 1px solid var(--borde);
+    margin: 5px 0;
+}
+
+/* Filas de información */
+.popup-terremoto p {
+    margin: 4px 0;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+/* Estilo secundario para el código ID */
+.popup-terremoto .codigo-id {
+    color: var(--texto-suave);
+    font-size: 11px;
+    margin-top: 6px;
+}
+
+/* ---------- Intro (vídeo de bienvenida) ---------- */
+
+/* Mientras la intro está activa, bloqueamos el scroll de la página */
+body.intro-activa {
+  overflow: hidden;
+}
+
+/* Capa a pantalla completa por encima de todo (incluido Leaflet y el spinner) */
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: #070a14; /* mismo tono que el fondo del vídeo, por si tarda en cargar */
+  opacity: 1;
+  transition: opacity 0.8s ease; /* este es el fundido hacia la web */
+}
+
+/* Clase que añade intro.js para hacer el fundido de salida */
+.intro.oculta {
+  opacity: 0;
+  pointer-events: none; /* para que no bloquee los clics mientras desaparece */
+}
+
+/* cover: el vídeo llena toda la pantalla recortando lo que sobre */
+.intro video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.saltar-intro {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  padding: 8px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.45);
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.saltar-intro:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+/* ---------- Usuario y favoritos ---------- */
+
+.barra-usuario {
+  margin-bottom: 4px;
+}
+
+.form-login,
+.sesion-activa {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* El botón "Salir" es secundario: solo con borde, para que destaque menos que "Entrar" */
+.sesion-activa button {
+  padding: 8px 16px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--texto);
+  cursor: pointer;
+}
+
+.sesion-activa button:hover {
+  border-color: var(--acento);
+}
+
+/* El mensaje de la barra de usuario (errores de login) casi no ocupa espacio cuando está vacío */
+#mensajeUsuario {
+  margin: 4px 0;
+  min-height: 0;
+}
+
+/* Botones que cambian entre "API" y "Favoritos" sobre el mapa 1 */
+.vistas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.boton-vista {
+  padding: 8px 16px;
+  border: 1px solid var(--acento);
+  border-radius: 20px;
+  background: transparent;
+  color: #ff9d80;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.boton-vista:hover:not(:disabled) {
+  background: rgba(255, 90, 54, 0.15);
+}
+
+/* El botón de la vista que está activa ahora mismo */
+.boton-vista.activo {
+  background: linear-gradient(135deg, var(--acento-fuerte), #b71c1c);
+  border-color: transparent;
+  color: white;
+}
+
+.boton-vista:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Botón dentro del popup del terremoto */
+.btn-favorito {
+  margin-top: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--ambar);
+  border-radius: 6px;
+  background: rgba(255, 179, 71, 0.12);
+  color: var(--texto);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-favorito:hover:not(:disabled) {
+  background: rgba(255, 179, 71, 0.25);
+}
+
+.btn-favorito:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+/* Variante roja para "Eliminar de favoritos" */
+.btn-favorito.btn-eliminar {
+  border-color: var(--peligro);
+  background: rgba(255, 138, 128, 0.12);
+}
+
+.btn-favorito.btn-eliminar:hover {
+  background: rgba(255, 138, 128, 0.25);
+}
+
+.aviso-favorito {
+  margin-top: 8px;
+  color: var(--texto-suave);
+  font-size: 11px;
+}
